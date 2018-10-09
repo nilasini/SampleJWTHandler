@@ -8,6 +8,7 @@ import com.nimbusds.jose.crypto.RSASSAVerifier;
 import com.nimbusds.jwt.EncryptedJWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
@@ -44,6 +45,7 @@ import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -63,40 +65,6 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
     private String tenantDomain;
     private static Map<Integer, Key> privateKeys = new ConcurrentHashMap<>();
     private static final String JWT_ASSERTION_CLAIM = "JWT_ASSERTION_CLAIM";
-
-    /**
-     * Initialize the JWT cache.
-     *
-     * @throws org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception
-     */
-//    @Override
-//    public void init() throws IdentityOAuth2Exception {
-//
-//        super.init();
-//        String resourceName = JWTConstants.PROPERTIES_FILE;
-//
-//        ClassLoader loader = CustomJWTBearerGrantHandler.class.getClassLoader();
-//        Properties prop = new Properties();
-//        InputStream resourceStream = loader.getResourceAsStream(resourceName);
-//        try {
-//            prop.load(resourceStream);
-//            validityPeriod = Integer.parseInt(prop.getProperty(JWTConstants.VALIDITY_PERIOD));
-//            cacheUsedJTI = Boolean.parseBoolean(prop.getProperty(JWTConstants.CACHE_USED_JTI));
-//            if (cacheUsedJTI) {
-//                this.jwtCache = JWTCache.getInstance();
-//            }
-//        } catch (IOException e) {
-//            throw new IdentityOAuth2Exception("Can not find the file", e);
-//        } catch (NumberFormatException e) {
-//            throw new IdentityOAuth2Exception("Invalid Validity period", e);
-//        } finally {
-//            try {
-//                resourceStream.close();
-//            } catch (IOException e) {
-//                log.error("Error while closing the stream");
-//            }
-//        }
-//    }
 
     /**
      * Get resident Identity Provider.
@@ -150,7 +118,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
 
         SignedJWT signedJWT = null;
         IdentityProvider identityProvider;
-        String tokenEndPointAlias = null;
+        List<String> tokenEndPointAliases = null;
         JWTClaimsSet claimsSet = null;
 
         tenantDomain = tokReqMsgCtx.getOauth2AccessTokenReqDTO().getTenantDomain();
@@ -252,7 +220,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
                     }
                 }
 
-                tokenEndPointAlias = getTokenEndpointAlias(identityProvider);
+                tokenEndPointAliases = getTokenEndpointAlias(identityProvider);
             } else {
                 handleException("No Registered IDP found for the JWT with issuer name : " + jwtIssuer);
             }
@@ -279,21 +247,25 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
 
             tokReqMsgCtx.setScope(tokReqMsgCtx.getOauth2AccessTokenReqDTO().getScope());
 
-            if (StringUtils.isEmpty(tokenEndPointAlias)) {
-                handleException("Token Endpoint alias of the local Identity Provider has not been " +
+            if (CollectionUtils.isEmpty(tokenEndPointAliases)) {
+                handleException("Audience of the local Identity Provider has not been " +
                         "configured for " + identityProvider.getIdentityProviderName());
             }
-            for (String aud : audience) {
-                if (StringUtils.equals(tokenEndPointAlias, aud)) {
-                    if (log.isDebugEnabled()) {
-                        log.debug(tokenEndPointAlias + " of IDP was found in the list of audiences.");
+            if (audience != null && CollectionUtils.isNotEmpty(audience) && StringUtils.isNotBlank(audience.get(0))) {
+                for (String tokenEndpointAlias : tokenEndPointAliases) {
+
+                    if (StringUtils.equals(tokenEndpointAlias, audience.get(0))) {
+                        if (log.isDebugEnabled()) {
+                            log.debug(tokenEndPointAliases + " of IDP was found in the list of audiences.");
+                        }
+                        audienceFound = true;
+                        break;
                     }
-                    audienceFound = true;
-                    break;
                 }
             }
+
             if (!audienceFound) {
-                handleException("None of the audience values matched the tokenEndpoint Alias " + tokenEndPointAlias);
+                handleException("None of the audience values matched the tokenEndpoint Alias " + tokenEndPointAliases);
             }
             boolean checkedExpirationTime = checkExpirationTime(expirationTime, currentTimeInMillis,
                     timeStampSkewMillis);
@@ -460,10 +432,10 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
      * @param identityProvider Identity provider
      * @return token endpoint alias
      */
-    private String getTokenEndpointAlias(IdentityProvider identityProvider) {
+    private List<String> getTokenEndpointAlias(IdentityProvider identityProvider) throws IdentityOAuth2Exception {
 
         Property oauthTokenURL = null;
-        String tokenEndPointAlias = null;
+        List<String> audienceList = new ArrayList<>();
         if (IdentityApplicationConstants.RESIDENT_IDP_RESERVED_NAME.equals(
                 identityProvider.getIdentityProviderName())) {
             try {
@@ -485,18 +457,18 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
                         IdentityApplicationConstants.Authenticator.OIDC.OAUTH2_TOKEN_URL);
             }
             if (oauthTokenURL != null) {
-                tokenEndPointAlias = oauthTokenURL.getValue();
+                audienceList.add(oauthTokenURL.getValue());
                 if (log.isDebugEnabled()) {
-                    log.debug("Token End Point Alias of Resident IDP :" + tokenEndPointAlias);
+                    log.debug("Token End Point Alias of Resident IDP :" + audienceList);
                 }
             }
         } else {
-            tokenEndPointAlias = identityProvider.getAlias();
+            audienceList = AudienceConfiguration.getAudienceConfig(OAuth2Util.getTenantId(tenantDomain));
             if (log.isDebugEnabled()) {
-                log.debug("Token End Point Alias of the Federated IDP: " + tokenEndPointAlias);
+                log.debug("Audience of the Federated IDP: " + audienceList);
             }
         }
-        return tokenEndPointAlias;
+        return audienceList;
     }
 
     /**
