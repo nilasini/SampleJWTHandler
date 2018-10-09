@@ -29,8 +29,8 @@ import org.wso2.carbon.identity.oauth.config.OAuthServerConfiguration;
 import org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception;
 import org.wso2.carbon.identity.oauth2.grant.jwt.JWTBearerGrantHandler;
 import org.wso2.carbon.identity.oauth2.grant.jwt.JWTConstants;
+import org.wso2.carbon.identity.oauth2.grant.jwt.cache.JWTCache;
 import org.wso2.carbon.identity.oauth2.grant.jwt.cache.JWTCacheEntry;
-import org.wso2.carbon.identity.oauth2.grant.jwt.validator.JWKSBasedJWTValidator;
 import org.wso2.carbon.identity.oauth2.model.RequestParameter;
 import org.wso2.carbon.identity.oauth2.token.OAuthTokenReqMessageContext;
 import org.wso2.carbon.identity.oauth2.util.OAuth2Util;
@@ -38,6 +38,8 @@ import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
 import org.wso2.carbon.idp.mgt.IdentityProviderManager;
 import org.wso2.carbon.utils.multitenancy.MultitenantConstants;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.Key;
 import java.security.PublicKey;
 import java.security.cert.CertificateException;
@@ -50,6 +52,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -61,10 +64,49 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
     private static final String OIDC_IDP_ENTITY_ID = "IdPEntityId";
     private static final String ERROR_GET_RESIDENT_IDP =
             "Error while getting Resident Identity Provider of '%s' tenant.";
+    private static final String JWKS_VALIDATION_ENABLE_CONFIG = "JWTValidatorConfigs.Enable";
+    private static final String JWKS_URI = "jwksUri";
 
     private String tenantDomain;
     private static Map<Integer, Key> privateKeys = new ConcurrentHashMap<>();
     private static final String JWT_ASSERTION_CLAIM = "JWT_ASSERTION_CLAIM";
+
+    private int validityPeriod;
+    private JWTCache jwtCache;
+    private boolean cacheUsedJTI;
+
+    /**
+     * Initialize the JWT cache.
+     *
+     * @throws org.wso2.carbon.identity.oauth2.IdentityOAuth2Exception
+     */
+    @Override
+    public void init() throws IdentityOAuth2Exception {
+        super.init();
+        String resourceName = JWTConstants.PROPERTIES_FILE;
+
+        ClassLoader loader = JWTBearerGrantHandler.class.getClassLoader();
+        Properties prop = new Properties();
+        InputStream resourceStream = loader.getResourceAsStream(resourceName);
+        try {
+            prop.load(resourceStream);
+            validityPeriod = Integer.parseInt(prop.getProperty(JWTConstants.VALIDITY_PERIOD));
+            cacheUsedJTI = Boolean.parseBoolean(prop.getProperty(JWTConstants.CACHE_USED_JTI));
+            if (cacheUsedJTI) {
+                this.jwtCache = JWTCache.getInstance();
+            }
+        } catch (IOException e) {
+            throw new IdentityOAuth2Exception("Can not find the file", e);
+        } catch (NumberFormatException e) {
+            throw new IdentityOAuth2Exception("Invalid Validity period", e);
+        } finally {
+            try {
+                resourceStream.close();
+            } catch (IOException e) {
+                log.error("Error while closing the stream");
+            }
+        }
+    }
 
     /**
      * Get resident Identity Provider.
@@ -300,8 +342,8 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
                     }
                 }
             }
-            if (isCacheUsedJTI() && (jti != null)) {
-                JWTCacheEntry entry = (JWTCacheEntry) getJwtCache().getValueFromCache(jti);
+            if (cacheUsedJTI && (jti != null)) {
+                JWTCacheEntry entry = (JWTCacheEntry) jwtCache.getValueFromCache(jti);
                 if (entry != null) {
                     if (checkCachedJTI(jti, signedJWT, entry, currentTimeInMillis, timeStampSkewMillis)) {
                         if (log.isDebugEnabled()) {
@@ -312,7 +354,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
                 }
             } else {
                 if (log.isDebugEnabled()) {
-                    if (!isCacheUsedJTI()) {
+                    if (!cacheUsedJTI) {
                         log.debug("List of used JSON Web Token IDs are not maintained. Continue Validation");
                     }
                     if (jti == null) {
@@ -333,8 +375,8 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
             if (log.isDebugEnabled()) {
                 log.debug("JWT Token was validated successfully");
             }
-            if (isCacheUsedJTI()) {
-                getJwtCache().addToCache(jti, new JWTCacheEntry(signedJWT));
+            if (cacheUsedJTI) {
+                jwtCache.addToCache(jti, new JWTCacheEntry(signedJWT));
             }
             if (log.isDebugEnabled()) {
                 log.debug("JWT Token was added to the cache successfully");
@@ -529,7 +571,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
     private boolean checkValidityOfTheToken(Date issuedAtTime, long currentTimeInMillis, long timeStampSkewMillis) throws IdentityOAuth2Exception {
 
         long issuedAtTimeMillis = issuedAtTime.getTime();
-        long rejectBeforeMillis = 1000L * 60 * getValidityPeriod();
+        long rejectBeforeMillis = 1000L * 60 * validityPeriod;
         if (currentTimeInMillis + timeStampSkewMillis - issuedAtTimeMillis >
                 rejectBeforeMillis) {
             handleException("JSON Web Token is issued before the allowed time." +
@@ -564,7 +606,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
                 }
 
                 // Update the cache with the new JWT for the same JTI.
-                getJwtCache().addToCache(jti, new JWTCacheEntry(signedJWT));
+                jwtCache.addToCache(jti, new JWTCacheEntry(signedJWT));
                 if (log.isDebugEnabled()) {
                     log.debug("jti of the JWT has been validated successfully and cache updated");
                 }
@@ -606,7 +648,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
         boolean hasJWKSUri = false;
         String jwksUri = null;
 
-        String isJWKSEnalbedProperty = IdentityUtil.getProperty(JWTConstants.JWKS_VALIDATION_ENABLE_CONFIG);
+        String isJWKSEnalbedProperty = IdentityUtil.getProperty(JWKS_VALIDATION_ENABLE_CONFIG);
         isJWKSEnabled = Boolean.parseBoolean(isJWKSEnalbedProperty);
         if (isJWKSEnabled) {
             if (log.isDebugEnabled()) {
@@ -615,7 +657,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
             IdentityProviderProperty[] identityProviderProperties = idp.getIdpProperties();
             if (!ArrayUtils.isEmpty(identityProviderProperties)) {
                 for (IdentityProviderProperty identityProviderProperty : identityProviderProperties) {
-                    if (StringUtils.equals(identityProviderProperty.getName(), JWTConstants.JWKS_URI)) {
+                    if (StringUtils.equals(identityProviderProperty.getName(), JWKS_URI)) {
                         hasJWKSUri = true;
                         jwksUri = identityProviderProperty.getValue();
                         if (log.isDebugEnabled()) {
@@ -634,7 +676,7 @@ public class CustomJWTBearerGrantHandler extends JWTBearerGrantHandler {
         }
         if (isJWKSEnabled && hasJWKSUri) {
             JWKSBasedJWTValidator jwksBasedJWTValidator = new JWKSBasedJWTValidator();
-            return jwksBasedJWTValidator.validateSignature(signedJWT.getParsedString(), jwksUri, signedJWT.getHeader().getAlgorithm()
+            return jwJWKSBasedJWTValidatorksBasedJWTValidator.validateSignature(signedJWT.getParsedString(), jwksUri, signedJWT.getHeader().getAlgorithm()
                     .getName(), null);
         } else {
             JWSVerifier verifier = null;

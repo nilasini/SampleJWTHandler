@@ -19,14 +19,14 @@
                     <groupId>com.nimbusds.wso2</groupId>
                     <artifactId>nimbus-jose-jwt</artifactId>
                 </exclusion>
-                <exclusion>
-                    <groupId>com.nimbusds</groupId>
-                    <artifactId>nimbus-jose-jwt</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.wso2.orbit.com.nimbusds</groupId>
-                    <artifactId>nimbus-jose-jwt</artifactId>
-                </exclusion>
+                <!--<exclusion>-->
+                    <!--<groupId>com.nimbusds</groupId>-->
+                    <!--<artifactId>nimbus-jose-jwt</artifactId>-->
+                <!--</exclusion>-->
+                <!--<exclusion>-->
+                    <!--<groupId>org.wso2.orbit.com.nimbusds</groupId>-->
+                    <!--<artifactId>nimbus-jose-jwt</artifactId>-->
+                <!--</exclusion>-->
             </exclusions>
         </dependency>
         <dependency>
@@ -110,19 +110,19 @@
                 </configuration>
             </plugin>
 
-            <plugin>
-                <groupId>org.apache.felix</groupId>
-                <artifactId>maven-scr-plugin</artifactId>
-                <version>1.7.2</version>
-                <executions>
-                    <execution>
-                        <id>generate-scr-scrdescriptor</id>
-                        <goals>
-                            <goal>scr</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
+            <!--<plugin>-->
+                <!--<groupId>org.apache.felix</groupId>-->
+                <!--<artifactId>maven-scr-plugin</artifactId>-->
+                <!--<version>1.7.2</version>-->
+                <!--<executions>-->
+                    <!--<execution>-->
+                        <!--<id>generate-scr-scrdescriptor</id>-->
+                        <!--<goals>-->
+                            <!--<goal>scr</goal>-->
+                        <!--</goals>-->
+                    <!--</execution>-->
+                <!--</executions>-->
+            <!--</plugin>-->
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
