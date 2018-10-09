@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>or.wso2.sample</groupId>
+    <artifactId>org.wso2.sample.jwt.handler</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>bundle</packaging>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.wso2.carbon.extension.identity.oauth2.grantType.jwt</groupId>
+            <artifactId>org.wso2.carbon.identity.oauth2.grant.jwt</artifactId>
+            <version>1.0.10</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.nimbusds.wso2</groupId>
+                    <artifactId>nimbus-jose-jwt</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.nimbusds</groupId>
+                    <artifactId>nimbus-jose-jwt</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.wso2.orbit.com.nimbusds</groupId>
+                    <artifactId>nimbus-jose-jwt</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>5.8</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity</groupId>
+            <artifactId>org.wso2.carbon.identity.oauth</artifactId>
+            <version>5.1.1</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.wso2.orbit.com.nimbusds</groupId>
+                    <artifactId>nimbus-jose-jwt</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity</groupId>
+            <artifactId>org.wso2.carbon.identity.core</artifactId>
+            <version>5.0.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon</groupId>
+            <artifactId>org.wso2.carbon.core</artifactId>
+            <version>4.4.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity</groupId>
+            <artifactId>org.wso2.carbon.identity.application.authentication.framework</artifactId>
+            <version>5.0.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon</groupId>
+            <artifactId>org.wso2.carbon.utils</artifactId>
+            <version>4.4.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.wso2.carbon.identity</groupId>
+            <artifactId>org.wso2.carbon.idp.mgt</artifactId>
+            <version>5.0.7</version>
+        </dependency>
+        <dependency>
+            <groupId>net.jcip</groupId>
+            <artifactId>jcip-annotations</artifactId>
+            <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <version>1.52</version>
+        </dependency>
+        <dependency>
+            <groupId>net.minidev</groupId>
+            <artifactId>json-smart</artifactId>
+            <version>1.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>org.apache.felix.scr.ds-annotations</artifactId>
+            <version>1.2.8</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>2.3.1</version>
+                <inherited>true</inherited>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                    <source>1.7</source>
+                    <target>1.7</target>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.felix</groupId>
+                <artifactId>maven-scr-plugin</artifactId>
+                <version>1.7.2</version>
+                <executions>
+                    <execution>
+                        <id>generate-scr-scrdescriptor</id>
+                        <goals>
+                            <goal>scr</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.felix</groupId>
+                <artifactId>maven-bundle-plugin</artifactId>
+                <version>2.3.5</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <instructions>
+                        <Bundle-SymbolicName>${project.artifactId}</Bundle-SymbolicName>
+                        <Bundle-Name>${project.artifactId}</Bundle-Name>
+                        <Private-Package>org.wso2.sample.jwt.audience.handler.internal</Private-Package>
+                        <Import-Package>
+                            org.wso2.carbon.identity.oauth.*,
+                            javax.crypto.*,
+                            javax.naming.*,
+                            javax.security.auth.x500,
+                            org.wso2.carbon.identity.oauth2.model;version="[5.0.0,6.0.0)",
+                            org.wso2.carbon.identity.oauth2.token;version="[5.0.0,6.0.0)",
+                            org.wso2.carbon.identity.oauth2.util;version="[5.0.0,6.0.0)",
+                            org.wso2.carbon.identity.oauth2;version="[5.0.0,6.0.0)",
+                            org.wso2.carbon.identity.oauth2.dto;version="[5.0.0,6.0.0)",
+                            <!--com.nimbusds.jose.*; version="5.8.0",-->
+                            <!--com.nimbusds.jwt.*; version="5.8.0",-->
+                            org.wso2.carbon.identity.oauth2.grant.jwt.*;version="[1.0.0,2.0.0]",
+                            org.apache.commons.collections;version="$[3.2.0, 4.0.0)",
+                            org.apache.commons.lang;version="[2.6.0, 3.0.0)",
+                            org.apache.commons.logging;version="[1.2, 2.0)",
+                            org.osgi.framework.*,
+                            org.wso2.carbon.identity.core.util;
+                            version="[5.0.0, 6.0.0)",
+                            org.wso2.carbon.core.*; version ="[4.4.0, 5.0.0)",
+                            org.osgi.service.*,
+                            org.wso2.carbon.identity.base.*;version="[5.0.0, 6.0.0)",
+                            org.wso2.carbon.identity.application.authentication.framework.*,
+                            org.wso2.carbon.identity.application.common.*;
+                            version="[5.0.0, 6.0.0)",
+                            org.wso2.carbon.utils.*;version="[4.4.0, 5.0.0)",
+                            org.wso2.carbon.idp.mgt;version="5.0.7",
+                            net.minidev.json.*;version="[1.3.0, 2.0.0)",
+                            org.bouncycastle.*;version="1.49, 2.0"
+
+                        </Import-Package>
+                        <Export-Package>
+                            !org.wso2.sample.jwt.audience.handler.internal,
+                            org.wso2.sample.jwt.audience.handler.*,
+                            !com.nimbusds.jose.*,
+                            !com.nimbusds.jwt.*,
+                        </Export-Package>
+                        <Embed-Dependency>
+                            nimbus-jose-jwt;scope=compile|runtime;inline=true,
+                            jcip-annotations;scope=compile|runtime;inline=true,
+                            bcpkix-jdk15on;scope=compile|runtime;inline=true
+                        </Embed-Dependency>
+                        <Embed-Transitive>true</Embed-Transitive>
+                    </instructions>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+
+</project>
